@@ -6,13 +6,13 @@ receivers:
 
 exporters:
   clickhousetraces:
-    endpoint: tcp://clickhouse:9000
+    dsn: tcp://clickhouse:9000
 
   signozclickhousemetrics:
-    endpoint: tcp://clickhouse:9000
+    dsn: tcp://clickhouse:9000
 
   clickhouselogsexporter:
-    endpoint: tcp://clickhouse:9000
+    dsn: tcp://clickhouse:9000
 
 service:
   pipelines:
