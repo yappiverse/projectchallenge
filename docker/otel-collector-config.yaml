@@ -8,8 +8,20 @@ exporters:
   clickhousetraces:
     endpoint: tcp://clickhouse:9000
 
+  signozclickhousemetrics:
+    endpoint: tcp://clickhouse:9000
+
+  clickhouselogsexporter:
+    endpoint: tcp://clickhouse:9000
+
 service:
   pipelines:
     traces:
       receivers: [otlp]
       exporters: [clickhousetraces]
+    metrics:
+      receivers: [otlp]
+      exporters: [signozclickhousemetrics]
+    logs:
+      receivers: [otlp]
+      exporters: [clickhouselogsexporter]

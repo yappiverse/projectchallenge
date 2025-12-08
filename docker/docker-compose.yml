@@ -1,33 +1,51 @@
+version: "3.7"
+
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:22.8
+    container_name: signoz-clickhouse
     ports:
-      - "9000:9000"
-      - "8123:8123"
+      - "9000:9000" # Native TCP
+      - "8123:8123" # HTTP interface
     ulimits:
       nofile:
         soft: 262144
         hard: 262144
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
 
   otel-collector:
     image: signoz/signoz-otel-collector:latest
+    container_name: signoz-otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
     ports:
       - "4317:4317"
       - "4318:4318"
+    environment:
+      - OTEL_RESOURCE_ATTRIBUTES=host.name=signoz-host,os.type=linux
+      - LOW_CARDINAL_EXCEPTION_GROUPING=false
     depends_on:
       - clickhouse
 
   signoz:
     image: signoz/signoz:latest
+    container_name: signoz
     ports:
-      - "8080:8080"
+      - "8083:8080"
+      - "6060:6060"
     environment:
       - SIGNOZ_TELEMETRYSTORE_PROVIDER=clickhouse
       - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000
       - SIGNOZ_ANALYTICS_ENABLED=true
+      - SIGNOZ_TOKENIZER_JWT_SECRET=7b2279b62569893a0e37a3c13885459ebefefb6defaf970faa5f03b51f45a3c6ec08dbef1972d516b077fbf4526778e804bd52fb1269819b7283a5c7dcb6add0
+    volumes:
+      - signoz-sqlite:/var/lib/signoz
     depends_on:
       - clickhouse
       - otel-collector
+
+volumes:
+  clickhouse-data:
+  signoz-sqlite:
