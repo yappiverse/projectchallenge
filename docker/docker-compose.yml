@@ -20,16 +20,14 @@ services:
     depends_on:
       - clickhouse
 
-  query-service:
-    image: signoz/query-service:latest
+  signoz:
+    image: signoz/signoz:latest
     ports:
       - "8080:8080"
     environment:
+      - STORAGE=clickhouse
       - CLICKHOUSE_HOST=clickhouse
-
-  frontend:
-    image: signoz/frontend:latest
-    ports:
-      - "3301:3301"
+      - TELEMETRY_ENABLED=true
     depends_on:
-      - query-service
+      - clickhouse
+      - otel-collector
