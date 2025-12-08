@@ -25,9 +25,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - STORAGE=clickhouse
-      - CLICKHOUSE_HOST=clickhouse
-      - TELEMETRY_ENABLED=true
+      - SIGNOZ_TELEMETRYSTORE_PROVIDER=clickhouse
+      - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000
+      - SIGNOZ_ANALYTICS_ENABLED=true
     depends_on:
       - clickhouse
       - otel-collector
