@@ -1,6 +1,7 @@
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:22.8
+    image: clickhouse/clickhouse-server:24.3
+    container_name: signoz-clickhouse
     ports:
       - "9000:9000"
       - "8123:8123"
@@ -10,29 +11,42 @@ services:
         hard: 262144
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
-      interval: 3s
-      timeout: 2s
+      interval: 5s
+      timeout: 3s
       retries: 10
+
+  schema-migrator:
+    image: signoz/signoz-schema-migrator:latest
+    container_name: signoz-schema-migrator
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    command: ["sync", "--dsn=tcp://clickhouse:9000"]
+    restart: on-failure
+
+  signoz:
+    image: signoz/signoz:latest
+    container_name: signoz
+    ports:
+      - "8080:8080"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      schema-migrator:
+        condition: service_completed_successfully
+    environment:
+      - STORAGE=clickhouse
+      - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000
 
   otel-collector:
     image: signoz/signoz-otel-collector:latest
+    container_name: signoz-otel-collector
+    depends_on:
+      signoz:
+        condition: service_started
     command: ["--config=/etc/otel-collector-config.yaml"]
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
-    ports:
-      - "4317:4317"
-      - "4318:4318"
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-
-  signoz:
-    image: signoz/query-service:latest
-    ports:
-      - "8082:8080"
-    environment:
-      - CLICKHOUSE_HOST=clickhouse
-      - SIGNOZ_TOKENIZER_JWT_SECRET=aae7fe948329dd13bf81227dbf3e88f0a732ee91bac30311294fef0d991c0d39
-    depends_on:
-      clickhouse:
-        condition: service_healthy
