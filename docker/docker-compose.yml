@@ -9,7 +9,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:8123 || exit 1"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
       interval: 3s
       timeout: 2s
       retries: 10
@@ -29,7 +29,7 @@ services:
   signoz:
     image: signoz/query-service:latest
     ports:
-      - "8080:8080"
+      - "8082:8080"
     environment:
       - CLICKHOUSE_HOST=clickhouse
       - SIGNOZ_TOKENIZER_JWT_SECRET=aae7fe948329dd13bf81227dbf3e88f0a732ee91bac30311294fef0d991c0d39
