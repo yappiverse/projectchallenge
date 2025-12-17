@@ -90,6 +90,8 @@ export function exportLogEntry(entry: LogEntry) {
 
 function getSeverityNumber(level: LogEntry["level"]): number {
 	switch (level) {
+		case "trace":
+			return 1;
 		case "debug":
 			return 5;
 		case "info":
@@ -98,6 +100,8 @@ function getSeverityNumber(level: LogEntry["level"]): number {
 			return 13;
 		case "error":
 			return 17;
+		case "fatal":
+			return 21;
 		default:
 			return 9;
 	}

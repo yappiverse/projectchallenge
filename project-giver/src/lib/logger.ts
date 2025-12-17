@@ -10,7 +10,7 @@ export interface LogContext {
 // This interface is imported by logs-exporter.ts
 export interface LogEntry {
 	timestamp: string;
-	level: "debug" | "info" | "warn" | "error";
+	level: "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 	message: string;
 	context: LogContext;
 	error?: Error;
@@ -25,7 +25,7 @@ class Logger {
 	}
 
 	private log(
-		level: "debug" | "info" | "warn" | "error",
+		level: "trace" | "debug" | "info" | "warn" | "error" | "fatal",
 		message: string,
 		context?: LogContext,
 		error?: Error,
@@ -45,17 +45,28 @@ class Logger {
 	}
 
 	// Public methods for a complete logger
-	info(message: string, context?: LogContext) {
-		this.log("info", message, context);
+	trace(message: string, context?: LogContext) {
+		this.log("trace", message, context);
 	}
+
 	debug(message: string, context?: LogContext) {
 		this.log("debug", message, context);
 	}
+
+	info(message: string, context?: LogContext) {
+		this.log("info", message, context);
+	}
+
 	warn(message: string, context?: LogContext) {
 		this.log("warn", message, context);
 	}
+
 	error(message: string, error?: Error, context?: LogContext) {
 		this.log("error", message, context, error);
+	}
+
+	fatal(message: string, error?: Error, context?: LogContext) {
+		this.log("fatal", message, context, error);
 	}
 }
 
