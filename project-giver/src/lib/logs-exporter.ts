@@ -19,8 +19,7 @@ const LOG_EXPORT_URL =
 
 function createLoggerProvider() {
 	const resource = resourceFromAttributes({
-		[ATTR_SERVICE_NAME]:
-			process.env.OTEL_SERVICE_NAME ?? "nextjs-observability-demo",
+		[ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? "project-giver",
 		[ATTR_SERVICE_VERSION]: process.env.npm_package_version ?? "1.0.0",
 	});
 
@@ -60,14 +59,13 @@ export function exportLogEntry(entry: LogEntry) {
 	if (!loggerProvider) return;
 
 	const logger = loggerProvider.getLogger(
-		process.env.OTEL_SERVICE_NAME ?? "nextjs-observability-demo",
+		process.env.OTEL_SERVICE_NAME ?? "project-giver",
 	);
 
 	const attributes: Record<string, AnyValue> = {
 		...(entry.context as Record<string, AnyValue>),
 		"log.level": entry.level,
-		"service.name":
-			process.env.OTEL_SERVICE_NAME ?? "nextjs-observability-demo",
+		"service.name": process.env.OTEL_SERVICE_NAME ?? "project-giver",
 	};
 
 	if (entry.error) {

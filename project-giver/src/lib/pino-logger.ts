@@ -5,7 +5,7 @@ import type { LogContext } from "@/lib/logger";
 const createPinoConfig = (
 	environment: string = process.env.NODE_ENV ?? "development",
 ): LoggerOptions => ({
-	name: "nextjs-observability-demo",
+	name: "project-giver",
 	level: environment === "production" ? "info" : "debug",
 	timestamp: pino.stdTimeFunctions.isoTime,
 	formatters: {
