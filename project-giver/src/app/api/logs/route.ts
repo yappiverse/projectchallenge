@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
 
 			// Use our server-side logger to forward the log
 			switch (level) {
+				case "trace":
+					logger.trace(message, enrichedContext);
+					break;
 				case "debug":
 					logger.debug(message, enrichedContext);
 					break;
@@ -47,6 +50,10 @@ export async function POST(request: NextRequest) {
 					break;
 				case "error": {
 					logger.error(message, err, enrichedContext);
+					break;
+				}
+				case "fatal": {
+					logger.fatal(message, err, enrichedContext);
 					break;
 				}
 				default:
