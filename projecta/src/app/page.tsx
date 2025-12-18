@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useState } from "react";
 
 export default function Home() {
@@ -50,8 +51,16 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="text-sm text-zinc-700">
-            Status: <span className="font-medium text-green-600">Ready</span>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard"
+              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 hover:border-zinc-500"
+            >
+              📊 Incident Dashboard
+            </Link>
+            <div className="text-sm text-zinc-700">
+              Status: <span className="font-medium text-green-600">Ready</span>
+            </div>
           </div>
         </div>
       </header>
