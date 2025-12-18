@@ -1,293 +1,289 @@
 import { NextResponse } from "next/server";
 import { context as otelContext, ROOT_CONTEXT } from "@opentelemetry/api";
 
+/* =======================
+   ENV
+======================= */
 const SIGNOZ_BASE = process.env.SIGNOZ_BASE_URL || "http://localhost:8080";
-const SIGNOZ_CUSTOM = process.env.SIGNOZ_LOGS_API;
-const GEMINI_KEY =
-  process.env.GEMINI_API_KEY || "AIzaSyA4v0yzGkyjLlhTfU9UAHRsF38lz44hbds";
+const SIGNOZ_API_KEY = process.env.SIGNOZ_API_KEY!;
+
+const GEMINI_KEY = process.env.GEMINI_API_KEY!;
 const GEMINI_URL =
-  process.env.GEMINI_URL ||
-  "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent";
+	process.env.GEMINI_URL ||
+	"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent";
 
-async function tryEndpoints(body: any) {
-  const candidates = [];
+/* =======================
+   SIGNoZ – LAST 60 MIN LOGS
+======================= */
+async function fetchLast60MinLogs() {
+	const end = Date.now();
+	const start = end - 60 * 60 * 1000;
 
-  // Custom override
-  if (SIGNOZ_CUSTOM) candidates.push(SIGNOZ_CUSTOM);
+	const body = {
+		start,
+		end,
+		requestType: "raw",
+		compositeQuery: {
+			queries: [
+				{
+					type: "builder_query",
+					spec: {
+						name: "A",
+						signal: "logs",
+						limit: 1000,
+						offset: 0,
+						disabled: false,
+					},
+				},
+			],
+		},
+	};
 
-  // SigNoz v1 ONLY
-  candidates.push(`${SIGNOZ_BASE}/api/v1/logs/search`);
-  candidates.push(`${SIGNOZ_BASE}/api/v1/logs/sample`);
-  candidates.push(`${SIGNOZ_BASE}/api/v1/query-range`);
+	const res = await fetch(`${SIGNOZ_BASE}/api/v5/query_range`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"SIGNOZ-API-KEY": SIGNOZ_API_KEY,
+		},
+		body: JSON.stringify(body),
+	});
 
-  for (const url of candidates) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+	if (!res.ok) {
+		const txt = await res.text();
+		throw new Error(`SigNoz error ${res.status}: ${txt.slice(0, 200)}`);
+	}
 
-      const ct = res.headers.get("content-type") || "";
+	const json = await res.json();
 
-      if (res.ok && ct.includes("application/json")) {
-        return { url, data: await res.json() };
-      }
+	const rows = json?.data?.data?.results?.[0]?.rows ?? [];
 
-      console.warn(
-        `[webhook] Skipping ${url} — status=${res.status} content-type=${ct}`
-      );
-    } catch (e) {
-      console.warn(`[webhook] request failed for ${url}: ${String(e)}`);
-    }
-  }
+	console.log("[signoz] rows fetched:", rows.length);
 
-  throw new Error(
-    "No working Signoz logs endpoint found (set SIGNOZ_LOGS_API to a valid endpoint)"
-  );
+	return rows;
 }
 
-async function callGemini(promptText: string) {
-  const payload = {
-    contents: [
-      {
-        parts: [
-          {
-            text: promptText,
-          },
-        ],
-      },
-    ],
-  };
-
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-goog-api-key": GEMINI_KEY,
-    },
-    body: JSON.stringify(payload),
-  });
-  const json = await res.json();
-  // log full response for now
-  console.log("[Gemini response]", JSON.stringify(json, null, 2));
-  return json;
+/* =======================
+   NORMALIZE LOGS FOR LLM
+======================= */
+interface LogRow {
+	timestamp?: string;
+	body?: string;
+	severity_text?: string;
+	trace_id?: string;
+	span_id?: string;
+	data?: {
+		attributes_string?: Record<string, string>;
+	};
 }
 
-function extractTextFromGemini(resp: any): string {
-  if (!resp) return "";
-  if (typeof resp === "string") return resp;
-  try {
-    if (resp.candidates && resp.candidates[0]) {
-      const c = resp.candidates[0];
-      if (c.content) {
-        if (Array.isArray(c.content))
-          return c.content.map((p: any) => p.text || p).join("");
-        if (typeof c.content === "string") return c.content;
-      }
-      if (c.message && c.message.content) {
-        const parts = c.message.content;
-        if (Array.isArray(parts))
-          return parts.map((p: any) => p.text || p).join("");
-      }
-    }
-    if (resp.output && Array.isArray(resp.output)) {
-      for (const o of resp.output) {
-        if (o.content && Array.isArray(o.content)) {
-          const txts = o.content.map((p: any) => p.text || p).filter(Boolean);
-          if (txts.length) return txts.join("");
-        }
-      }
-    }
-    if (resp.result && resp.result.output) return String(resp.result.output);
-  } catch (e) {
-    // ignore
-  }
-  return JSON.stringify(resp);
+interface NormalizedLog {
+	timestamp?: string;
+	service?: string;
+	severity?: string;
+	message?: string;
+	error_message?: string;
+	error_name?: string;
+	gateway?: string;
+	db_host?: string;
+	trace_id?: string;
+	span_id?: string;
+	transaction_id?: string;
+}
+
+function normalizeLogsForLLM(rows: LogRow[]) {
+	const seen = new Set<string>();
+	const result: NormalizedLog[] = [];
+
+	for (const r of rows) {
+		const attrs = r?.data?.attributes_string || {};
+		const message = r.body || "";
+
+		const dedupKey =
+			message + attrs["error.message"] + attrs["gateway"] + attrs["db_host"];
+
+		if (seen.has(dedupKey)) continue;
+		seen.add(dedupKey);
+
+		result.push({
+			timestamp: r.timestamp,
+			service: attrs["service.name"],
+			severity: r.severity_text,
+			message,
+			error_message: attrs["error.message"],
+			error_name: attrs["error.name"],
+			gateway: attrs["gateway"],
+			db_host: attrs["db_host"],
+			trace_id: attrs["traceId"] || r.trace_id,
+			span_id: attrs["spanId"] || r.span_id,
+			transaction_id: attrs["transactionId"],
+		});
+	}
+
+	return result.slice(0, 10); // HARD CAP
+}
+
+/* =======================
+   GEMINI
+======================= */
+interface GeminiResponse {
+	candidates?: Array<{
+		content?: {
+			parts?: Array<{ text: string }>;
+		};
+	}>;
+}
+
+let lastGeminiCall = 0;
+
+async function callGemini(prompt: string) {
+	if (Date.now() - lastGeminiCall < 30_000) {
+		console.warn("[gemini] skipped (local rate limit)");
+		return null;
+	}
+	lastGeminiCall = Date.now();
+
+	const res = await fetch(GEMINI_URL, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"X-goog-api-key": GEMINI_KEY,
+		},
+		body: JSON.stringify({
+			contents: [{ parts: [{ text: prompt }] }],
+		}),
+	});
+
+	return res.json();
+}
+
+function extractGeminiText(resp: GeminiResponse | null): string {
+	if (!resp) return "N/A (Gemini skipped)";
+	return (
+		resp?.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") ||
+		JSON.stringify(resp)
+	);
+}
+
+/* =======================
+   WEBHOOK
+======================= */
+interface Alert {
+	labels?: Record<string, string>;
+	annotations?: Record<string, string>;
+}
+
+interface WebhookPayload {
+	test?: boolean;
+	alerts?: Array<Alert>;
+	receiver?: string;
+	commonLabels?: Record<string, string>;
+	commonAnnotations?: Record<string, string>;
 }
 
 export async function POST(req: Request) {
-  // allow optional body to customize time window; default: last 1 hour
-  let bodyReq: any = {};
-  try {
-    bodyReq = (await req.json()) || {};
-  } catch (e) {
-    bodyReq = {};
-  }
+	let payload: WebhookPayload = {};
 
-  // Heuristics: if this looks like a Signoz "test connection" ping, reply 200 quickly.
-  const isTestHeader =
-    req.headers.get("x-signoz-test") || req.headers.get("x-test");
-  const looksLikeTest =
-    isTestHeader ||
-    bodyReq?.test === true ||
-    bodyReq?.isTest === true ||
-    bodyReq?.type === "test" ||
-    bodyReq?.event === "test_connection" ||
-    Object.keys(bodyReq || {}).length === 0;
-  if (looksLikeTest) {
-    console.log(
-      "/api/webhook: received test connection ping from Signoz (or empty body) — returning 200"
-    );
-    return NextResponse.json({ ok: true, message: "test connection received" });
-  }
+	try {
+		payload = await req.json();
+		console.log("[webhook] payload received");
+	} catch {
+		return NextResponse.json({ ok: true });
+	}
 
-  // Detect Alertmanager-style payload (Signoz sends alerts in this format)
-  const isAlertmanager =
-    bodyReq &&
-    (Array.isArray(bodyReq.alerts) ||
-      bodyReq.receiver ||
-      bodyReq.commonAnnotations ||
-      bodyReq.commonLabels);
-  if (isAlertmanager) {
-    // Immediately acknowledge to Signoz so Test Connection/alert delivery succeeds
-    console.log(
-      "/api/webhook: received alertmanager payload — acknowledging immediately and processing in background"
-    );
+	if (!payload || payload.test === true) {
+		return NextResponse.json({ ok: true });
+	}
 
-    // Fire-and-forget processing so Signoz gets quick 200
-    (function scheduleProcessAlert(payload: any) {
-      const task = async () => {
-        try {
-          const receiver = payload.receiver;
-          const status = payload.status;
-          const common = payload.commonAnnotations || {};
-          const labels = payload.commonLabels || {};
+	const isAlertmanager =
+		Array.isArray(payload.alerts) || payload.receiver || payload.commonLabels;
 
-          const alertSummaries: string[] = [];
-          if (Array.isArray(payload.alerts)) {
-            for (const a of payload.alerts) {
-              const lbls = a.labels || {};
-              const anns = a.annotations || {};
-              alertSummaries.push(
-                `- alert: ${lbls.alertname || "(unknown)"} severity=${
-                  lbls.severity || labels.severity || "(n/a)"
-                } summary=${
-                  anns.summary || anns.message || common.summary || "(none)"
-                }`
-              );
-            }
-          }
+	if (!isAlertmanager) {
+		return NextResponse.json({ ok: true });
+	}
 
-          let promptBase = `Signoz Alert received. receiver=${receiver} status=${status} labels=${JSON.stringify(
-            labels
-          )} annotations=${JSON.stringify(
-            common
-          )}\n\nAlerts:\n${alertSummaries.join("\n")}`;
+	setTimeout(() => {
+		otelContext.with(ROOT_CONTEXT, async () => {
+			try {
+				const labels = payload.commonLabels || {};
+				const annotations = payload.commonAnnotations || {};
 
-          const templateInstruction = `\n\nPlease produce a concise incident summary following EXACTLY this format (use 'N/A' when a field is not available):\n\n🚨 ALERT: {Title} 🚨\nService: {service} {optional extra like Order ID: ...}\n🛑 Penyebab Utama: {short cause in Indonesian}\n🛠 Analisis Teknis: {technical analysis in Indonesian}\n🔥 Impact Level: {color + level and short impact statement}\n✅ Action Items:\n- {action 1}\n- {action 2}\n- {action 3}\n🔍 Trace ID: {trace id or N/A}\n\nReturn ONLY the filled template text (no surrounding explanation).`;
+				const alertLines =
+					payload.alerts?.map(
+						(a) =>
+							`- ${a.labels?.alertname} | severity=${a.labels?.severity} | ${a.annotations?.summary}`,
+					) || [];
 
-          let prompt = promptBase + templateInstruction;
+				let prompt = `
+Signoz Alert received.
 
-          // Optionally fetch last 1 hour logs from configured SIGNOZ_LOGS_API to enrich the prompt
-          if (SIGNOZ_CUSTOM) {
-            try {
-              const end = Date.now();
-              const start = end - 1000 * 60 * 60;
-              const resp = await fetch(SIGNOZ_CUSTOM, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ start, end, query: "", limit: 200 }),
-              });
-              const ct = resp.headers.get("content-type") || "";
-              if (resp.ok && ct.includes("application/json")) {
-                const logsJson = await resp.json();
-                const logsText = JSON.stringify(logsJson).slice(0, 20000);
-                prompt += `\n\nRecent logs (1h) excerpt:\n${logsText}`;
-              } else {
-                console.warn(
-                  "/api/webhook: SIGNOZ_LOGS_API responded but not JSON or failed – skipping logs enrichment",
-                  { status: resp.status, contentType: ct }
-                );
-              }
-            } catch (e) {
-              console.warn(
-                "/api/webhook: failed to fetch logs from SIGNOZ_LOGS_API",
-                String(e)
-              );
-            }
-          }
+Labels:
+${JSON.stringify(labels, null, 2)}
 
-          // Call Gemini and log response (expecting the filled template text)
-          const geminiResp = await callGemini(prompt);
-          const summaryText = extractTextFromGemini(geminiResp);
-          console.log(
-            "/api/webhook: Gemini formatted summary:\n" + summaryText
-          );
-        } catch (e) {
-          console.error(
-            "/api/webhook: error processing alert in background",
-            String(e)
-          );
-        }
-      };
+Annotations:
+${JSON.stringify(annotations, null, 2)}
 
-      // schedule on next tick but detach from current OTEL context to avoid "ended span" errors
-      setTimeout(() => {
-        try {
-          otelContext.with(ROOT_CONTEXT, () => {
-            task().catch((e) => console.error("background process failed", e));
-          });
-        } catch (e) {
-          // fallback: just run the task
-          task().catch((err) =>
-            console.error("background process failed", err)
-          );
-        }
-      }, 0);
-    })(bodyReq);
+Alerts:
+${alertLines.join("\n")}
+`;
 
-    return NextResponse.json({ ok: true, message: "alert received" });
-  }
+				/* --- Fetch & normalize logs --- */
+				const rows = await fetchLast60MinLogs();
+				console.log("Fetched logs:", rows);
+				const normalized = normalizeLogsForLLM(rows);
+				console.log("Normalized logs:", normalized);
+				if (normalized.length > 0) {
+					const logsText = normalized
+						.map(
+							(l) => `
+[${l.severity}] ${l.message}
+Service: ${l.service}
+Cause: ${l.error_message || "N/A"}
+Gateway: ${l.gateway || "N/A"}
+DB Host: ${l.db_host || "N/A"}
+Trace ID: ${l.trace_id || "N/A"}
+Transaction: ${l.transaction_id || "N/A"}
+`,
+						)
+						.join("\n");
 
-  const end = Date.now();
-  const start =
-    end - (bodyReq.minutes ? bodyReq.minutes * 60000 : 1000 * 60 * 60);
+					prompt += `
+Recent ERROR logs (deduplicated, last 60 minutes):
+${logsText}
 
-  const body = {
-    start,
-    end,
-    severityComparator: ">",
-    severity: "WARN",
-    // limit: bodyReq.limit || 200,
-  };
+Use the logs above to determine the REAL root cause.
+`;
+				}
 
-  try {
-    const { url, data } = await tryEndpoints(body);
+				/* --- Gemini instruction --- */
+				prompt += `
+Please produce a concise incident summary following EXACTLY this format
+(use 'N/A' when missing):
 
-    // flatten logs into text
-    const logsText = (() => {
-      try {
-        if (Array.isArray(data))
-          return data.map((d: any) => JSON.stringify(d)).join("\n\n");
-        // try common shapes
-        if (data?.data) return JSON.stringify(data.data);
-        return JSON.stringify(data);
-      } catch (e) {
-        return String(data);
-      }
-    })();
+🚨 ALERT: {Title} 🚨
+Service: {service}
+🛑 Penyebab Utama: {short cause in Indonesian}
+🛠 Analisis Teknis: {technical analysis in Indonesian}
+🔥 Impact Level: {color + level and impact}
+✅ Action Items:
+- {action 1}
+- {action 2}
+- {action 3}
+🔍 Trace ID: {trace id or N/A}
 
-    const templateInstruction = `\n\nPlease produce a concise incident summary following EXACTLY this format (use 'N/A' when a field is not available):\n\n🚨 ALERT: {Title} 🚨\nService: {service} {optional extra like Order ID: ...}\n🛑 Penyebab Utama: {short cause in Indonesian}\n🛠 Analisis Teknis: {technical analysis in Indonesian}\n🔥 Impact Level: {color + level and short impact statement}\n✅ Action Items:\n- {action 1}\n- {action 2}\n- {action 3}\n🔍 Trace ID: {trace id or N/A}\n\nReturn ONLY the filled template text (no surrounding explanation).`;
+Return ONLY the filled template text.
+`;
 
-    const prompt =
-      `Summarize the following logs and give a short list of actions (1-3) to investigate or mitigate.\n\n${logsText}` +
-      templateInstruction;
+				const geminiResp = await callGemini(prompt);
+				const summary = extractGeminiText(geminiResp);
 
-    const geminiResp = await callGemini(prompt);
-    const summaryText = extractTextFromGemini(geminiResp);
+				console.log("\n===== INCIDENT SUMMARY =====\n");
+				console.log(summary);
+				console.log("\n============================\n");
+			} catch (err) {
+				console.error("[webhook] background error", err);
+			}
+		});
+	}, 0);
 
-    return NextResponse.json({
-      ok: true,
-      source: url,
-      summary: summaryText,
-      raw: geminiResp,
-    });
-  } catch (err: any) {
-    console.error("/api/webhook error:", err);
-    return NextResponse.json(
-      { ok: false, error: String(err) },
-      { status: 502 }
-    );
-  }
+	return NextResponse.json({ ok: true, message: "alert received" });
 }
