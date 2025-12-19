@@ -56,21 +56,23 @@ export default function IncidentList({
   const activeCount = available.length;
 
   return (
-    <Card className="border-white/10 bg-[#0a0c10] text-slate-100">
+    <Card>
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
               Incident timeline
             </p>
-            <CardTitle className="text-2xl">Live feed</CardTitle>
-            <CardDescription className="text-sm text-slate-400">
+            <CardTitle className="text-2xl text-foreground">
+              Live feed
+            </CardTitle>
+            <CardDescription className="text-sm text-muted-foreground">
               Pilih item untuk membuka detail, log, dan ringkasan Gemini.
             </CardDescription>
           </div>
           <Badge
             variant="outline"
-            className="w-fit border-white/15 text-[10px] tracking-[0.3em] text-slate-300"
+            className="w-fit text-[10px] tracking-[0.3em]"
           >
             {activeCount} aktif
           </Badge>
@@ -87,10 +89,10 @@ export default function IncidentList({
                 }
                 aria-pressed={active}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] transition",
+                  "rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] transition-colors",
                   active
-                    ? "border-white/50 bg-white/5 text-slate-100"
-                    : "border-white/10 text-slate-400 hover:border-white/25 hover:text-slate-100"
+                    ? "border-primary bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 )}
               >
                 {value}
@@ -102,15 +104,17 @@ export default function IncidentList({
 
       <CardContent className="p-0">
         {available.length === 0 ? (
-          <div className="flex h-56 flex-col items-center justify-center gap-3 text-center text-slate-400">
+          <div className="flex h-56 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
             <Badge
               variant="outline"
               className="text-[10px] uppercase tracking-[0.3em]"
             >
               {severityFilter ? `Filter ${severityFilter}` : "Menunggu data"}
             </Badge>
-            <p className="text-xl font-semibold text-white">Belum ada data</p>
-            <p className="text-sm text-slate-500">
+            <p className="text-xl font-semibold text-foreground">
+              Belum ada data
+            </p>
+            <p className="text-sm text-muted-foreground">
               {severityFilter
                 ? "Tidak ada incident yang cocok dengan filter ini."
                 : "Kirim payload webhook dari Alertmanager untuk mengisi timeline."}
@@ -118,7 +122,7 @@ export default function IncidentList({
           </div>
         ) : (
           <ScrollArea className="h-[72vh]">
-            <ul className="divide-y divide-white/5">
+            <ul className="divide-y divide-border/60">
               {available.map((incident) => {
                 const isSelected = incident.id === selectedId;
                 const severity =
@@ -131,13 +135,13 @@ export default function IncidentList({
                       type="button"
                       onClick={() => onSelect(incident.id)}
                       className={cn(
-                        "w-full space-y-2 rounded-none px-5 py-4 text-left transition",
+                        "w-full space-y-2 rounded-none px-5 py-4 text-left transition-colors",
                         isSelected
-                          ? `bg-white/5 ${palette.glow}`
-                          : "hover:bg-white/5"
+                          ? `bg-muted/70 ${palette.glow}`
+                          : "hover:bg-muted/40"
                       )}
                     >
-                      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                         <span>{formatDateTime(incident.createdAt)}</span>
                         <span>{timeAgo(incident.createdAt)}</span>
                       </div>
@@ -157,15 +161,15 @@ export default function IncidentList({
                             {severity ?? "n/a"}
                           </span>
                         </Badge>
-                        <span className="font-semibold text-slate-100">
+                        <span className="font-semibold text-foreground">
                           {incident.payload.commonLabels?.alertname ??
                             "Generic alert"}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-300">
+                      <p className="text-sm text-muted-foreground">
                         {truncate(incident.summaryText)}
                       </p>
-                      <div className="flex flex-wrap gap-4 text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                      <div className="flex flex-wrap gap-4 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                         <span>{incident.normalizedLogs.length} curated</span>
                         <span>{incident.rawLogs.length} raw</span>
                       </div>
@@ -180,7 +184,7 @@ export default function IncidentList({
 
       <Separator className="opacity-20" />
 
-      <CardContent className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+      <CardContent className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>Total curated log entries: {totalNormalized}</span>
         <span>Timeline otomatis terbaru → lama</span>
       </CardContent>

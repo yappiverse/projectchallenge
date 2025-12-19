@@ -1,5 +1,6 @@
 import { listIncidentRecords } from "@/lib/incident/storage";
 import IncidentDashboard from "@/components/dashboard/IncidentDashboard";
+import ThemeSelector from "@/components/dashboard/ThemeSelector";
 
 export const dynamic = "force-dynamic";
 
@@ -7,9 +8,14 @@ export default async function DashboardPage() {
   const incidents = await listIncidentRecords(25);
 
   return (
-    <main className="min-h-screen bg-[#05070a] text-slate-100">
-      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:px-10">
-        <IncidentDashboard incidents={incidents} />
+    <main className="page-bg min-h-screen bg-background text-foreground transition-colors">
+      <div className="mx-auto w-full max-w-max px-4 pb-16 pt-10 sm:px-8 lg:px-12 xl:px-16">
+        <div className="space-y-8">
+          <div className="sticky top-4 z-30 flex justify-center sm:justify-end">
+            <ThemeSelector />
+          </div>
+          <IncidentDashboard incidents={incidents} />
+        </div>
       </div>
     </main>
   );

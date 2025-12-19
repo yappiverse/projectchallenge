@@ -12,6 +12,11 @@
     "filesystem": {
       "command": "npx",
       "args": ["-y", "mcp-filesystem-server"]
+    },
+
+    "shadcn": {
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"]
     }
   }
 }

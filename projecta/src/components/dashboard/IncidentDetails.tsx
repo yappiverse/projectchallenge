@@ -26,12 +26,12 @@ const StatTile = ({
   value: string;
   meta: string;
 }) => (
-  <div className="rounded-xl border border-white/10 bg-[#0f1117] p-4">
-    <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+  <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors">
+    <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
       {title}
     </p>
-    <p className="mt-2 text-2xl font-semibold text-slate-100">{value}</p>
-    <p className="text-sm text-slate-400">{meta}</p>
+    <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+    <p className="text-sm text-muted-foreground">{meta}</p>
   </div>
 );
 
@@ -76,7 +76,7 @@ const KeyValueGrid = ({
   );
   if (entries.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-white/20 p-4 text-sm text-slate-400">
+      <div className="rounded-2xl border border-dashed border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground">
         {emptyLabel}
       </div>
     );
@@ -86,22 +86,22 @@ const KeyValueGrid = ({
       {entries.map(([key, value]) => (
         <div
           key={key}
-          className="rounded-xl border border-white/10 bg-[#0f1117] p-3"
+          className="rounded-xl border border-border bg-card p-3 shadow-sm transition-colors"
         >
-          <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
             {key}
           </p>
           {key.toLowerCase() === "related_logs" ? (
-            <details className="mt-2 rounded-lg border border-white/10 bg-[#0a0c10] p-3 text-sm text-slate-300">
-              <summary className="cursor-pointer text-[10px] uppercase tracking-[0.3em] text-slate-500">
+            <details className="mt-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <summary className="cursor-pointer text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                 Tampilkan tautan
               </summary>
-              <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm text-slate-100">
+              <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm text-foreground">
                 {String(value)}
               </p>
             </details>
           ) : (
-            <p className="mt-1 wrap-break-word text-sm font-semibold text-slate-100">
+            <p className="mt-1 wrap-break-word text-sm font-semibold text-foreground">
               {String(value)}
             </p>
           )}
@@ -130,25 +130,25 @@ const CollapsibleSection = ({
 }: CollapsibleSectionProps) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="rounded-2xl border border-white/10 bg-[#0a0c10]">
+    <section className="rounded-2xl border border-border bg-card/90 shadow-sm transition-colors">
       <button
         type="button"
-        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white/5"
+        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/40"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
       >
         <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-[0.35em] text-slate-500">
+          <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
             {eyebrow}
           </p>
-          <p className="text-lg font-semibold text-slate-100 group-hover:underline">
+          <p className="text-lg font-semibold text-foreground group-hover:underline">
             {title}
           </p>
           {description && (
-            <p className="text-sm text-slate-500">{description}</p>
+            <p className="text-sm text-muted-foreground">{description}</p>
           )}
         </div>
-        <div className="flex items-center gap-3 text-slate-400">
+        <div className="flex items-center gap-3 text-muted-foreground">
           {action}
           <ChevronDown
             className={cn(
@@ -159,7 +159,7 @@ const CollapsibleSection = ({
           />
         </div>
       </button>
-      {open && <div className="border-t border-white/10 p-5">{children}</div>}
+      {open && <div className="border-t border-border p-5">{children}</div>}
     </section>
   );
 };
@@ -196,7 +196,7 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
   const summaryChunks = summaryParagraphs.map((entry) => toSummaryChunk(entry));
 
   return (
-    <div className="flex flex-col gap-5 text-slate-100">
+    <div className="flex flex-col gap-5 text-foreground">
       <CollapsibleSection
         eyebrow="Incident summary"
         title={
@@ -217,19 +217,19 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-3 lg:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                   Gemini summary
                 </p>
                 <Badge
                   variant="outline"
-                  className="rounded-full border-white/20 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-slate-300"
+                  className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.3em]"
                 >
                   AI generated
                 </Badge>
               </div>
-              <div className="space-y-4 rounded-2xl border border-white/10 bg-gradient-to-br from-[#161a27] via-[#0f1117] to-[#05070a] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3 text-xs text-slate-400">
-                  <p className="font-semibold text-slate-100">
+              <div className="space-y-4 rounded-2xl border border-border bg-linear-to-br from-white via-primary/5 to-muted/60 p-5 shadow-lg transition-colors dark:from-[#161a27] dark:via-[#0f1117] dark:to-[#05070a]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 text-xs text-muted-foreground">
+                  <p className="font-semibold text-foreground">
                     {incident.payload.commonLabels?.alertname ?? "Incident"}
                   </p>
                   <span>{formatDateTime(incident.createdAt)}</span>
@@ -238,16 +238,18 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
                   {summaryChunks.map((chunk, idx) => (
                     <div
                       key={`${chunk.detail}-${idx}`}
-                      className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200 backdrop-blur-sm"
+                      className="flex gap-3 rounded-2xl border border-border bg-background p-3 text-sm text-muted-foreground shadow-sm transition-colors dark:bg-white/5"
                     >
-                      <span className="text-xl leading-none">{chunk.icon}</span>
+                      <span className="text-xl leading-none text-foreground">
+                        {chunk.icon}
+                      </span>
                       <div className="space-y-1">
                         {chunk.title && (
-                          <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400">
+                          <p className="text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
                             {chunk.title}
                           </p>
                         )}
-                        <p className="wrap-break-word text-slate-100">
+                        <p className="wrap-break-word text-foreground">
                           {chunk.detail}
                         </p>
                       </div>
@@ -257,18 +259,18 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
               </div>
             </div>
             <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                 Prompt
               </p>
-              <details className="rounded-xl border border-white/10 bg-[#0f1117] p-4 text-sm text-slate-200">
-                <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-slate-500">
+              <details className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-muted-foreground">
                   Tampilkan prompt penuh
                 </summary>
-                <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm text-slate-300">
+                <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">
                   {incident.prompt}
                 </p>
               </details>
-              <div className="rounded-xl border border-dashed border-white/15 p-3 text-sm text-slate-400">
+              <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground">
                 {incident.geminiResponse
                   ? "Ringkasan berhasil"
                   : "Gemini dilewati / rate limited"}
@@ -311,13 +313,13 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
       >
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
               Labels
             </p>
             <KeyValueGrid data={labels} emptyLabel="Tidak ada label tambahan" />
           </div>
           <div className="space-y-2">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
               Annotations
             </p>
             <KeyValueGrid data={annotations} emptyLabel="Tidak ada anotasi" />
@@ -335,7 +337,7 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
             value={logTab}
             onValueChange={(value) => setLogTab(value as "normalized" | "raw")}
           >
-            <TabsList className="rounded-full border border-white/10 bg-transparent">
+            <TabsList className="rounded-full border border-border bg-transparent">
               <TabsTrigger value="normalized">Curated</TabsTrigger>
               <TabsTrigger value="raw">Raw</TabsTrigger>
             </TabsList>
@@ -344,37 +346,37 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
                 {incident.normalizedLogs.map((log, idx) => (
                   <article
                     key={`${log.timestamp}-${idx}`}
-                    className="rounded-xl border border-white/10 bg-[#0f1117] p-4"
+                    className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors"
                   >
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <span>{log.timestamp ?? "n/a"}</span>
                       {log.service && (
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-foreground">
                           {log.service}
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 text-sm text-slate-100">
+                    <p className="mt-2 text-sm text-foreground">
                       {log.message ?? "(no message)"}
                     </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                       {log.severity && (
-                        <span className="rounded-full border border-white/15 px-2 py-0.5 uppercase tracking-[0.2em]">
+                        <span className="rounded-full border border-border px-2 py-0.5 uppercase tracking-[0.2em]">
                           {log.severity}
                         </span>
                       )}
                       {log.error_message && (
-                        <span className="rounded-full border border-white/15 px-2 py-0.5">
+                        <span className="rounded-full border border-border px-2 py-0.5">
                           {log.error_message}
                         </span>
                       )}
                       {log.trace_id && (
-                        <span className="rounded-full border border-white/15 px-2 py-0.5 font-mono">
+                        <span className="rounded-full border border-border px-2 py-0.5 font-mono">
                           trace:{log.trace_id}
                         </span>
                       )}
                       {log.span_id && (
-                        <span className="rounded-full border border-white/15 px-2 py-0.5 font-mono">
+                        <span className="rounded-full border border-border px-2 py-0.5 font-mono">
                           span:{log.span_id}
                         </span>
                       )}
@@ -382,7 +384,7 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
                   </article>
                 ))}
                 {incident.normalizedLogs.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-slate-400">
+                  <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
                     Tidak ada log terkurasi untuk ditampilkan.
                   </div>
                 )}
@@ -393,13 +395,13 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
                 {incident.rawLogs.map((log, idx) => (
                   <pre
                     key={`${log.timestamp}-${idx}`}
-                    className="overflow-x-auto rounded-xl border border-white/10 bg-[#0f1117] p-4 text-xs font-mono text-emerald-200 whitespace-pre-wrap"
+                    className="overflow-x-auto rounded-xl border border-border bg-card p-4 text-xs font-mono text-emerald-600 whitespace-pre-wrap dark:text-emerald-200"
                   >
                     {JSON.stringify(log, null, 2)}
                   </pre>
                 ))}
                 {incident.rawLogs.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-slate-400">
+                  <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
                     Tidak ada log mentah untuk incident ini.
                   </div>
                 )}
@@ -407,7 +409,7 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
             </TabsContent>
           </Tabs>
           <Separator className="my-4 opacity-20" />
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Log disusun terbaru → lama untuk memudahkan pencocokan dengan
             timeline SigNoz.
           </p>
