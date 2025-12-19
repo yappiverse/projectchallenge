@@ -227,7 +227,7 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
                   AI generated
                 </Badge>
               </div>
-              <div className="space-y-4 rounded-2xl border border-border bg-linear-to-br from-white via-primary/5 to-muted/60 p-5 shadow-lg transition-colors dark:from-[#161a27] dark:via-[#0f1117] dark:to-[#05070a]">
+              <div className="space-y-4 rounded-2xl border border-border p-5 shadow-lg transition-colors dark:from-[#161a27] dark:via-[#0f1117] dark:to-[#05070a]">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 text-xs text-muted-foreground">
                   <p className="font-semibold text-foreground">
                     {incident.payload.commonLabels?.alertname ?? "Incident"}

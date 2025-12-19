@@ -37,7 +37,6 @@ interface StatCardProps {
 const HeroStat = ({
   label,
   value,
-  meta,
   accent,
 }: {
   label: string;
@@ -47,7 +46,7 @@ const HeroStat = ({
 }) => (
   <div
     className={cn(
-      "rounded-2xl border border-border/60 bg-gradient-to-br p-4 text-left shadow-sm",
+      "rounded-2xl border border-border/60 bg-linear-to-br p-4 text-left shadow-sm w-64",
       accent
     )}
   >
@@ -55,7 +54,7 @@ const HeroStat = ({
       {label}
     </p>
     <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
-    <p className="text-sm text-muted-foreground">{meta}</p>
+    {/* <p className="text-sm text-muted-foreground">{meta}</p> */}
   </div>
 );
 
@@ -128,7 +127,7 @@ export default function IncidentDashboard({
       total: incidents.length.toString(),
       latest: formatDateTime(latest.createdAt),
       success: `${successRate}%`,
-      logDepth: `${normalizedTotal} curated / ${rawTotal} raw`,
+      logDepth: `${normalizedTotal} Curated / ${rawTotal} Raw`,
     };
   }, [incidents]);
 
@@ -211,7 +210,7 @@ export default function IncidentDashboard({
             entri di sebelah kiri untuk detail.
           </CardDescription>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:max-w-lg">
+        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:max-w-lg">
           <HeroStat
             label="Snapshot aktif"
             value={stats.total}

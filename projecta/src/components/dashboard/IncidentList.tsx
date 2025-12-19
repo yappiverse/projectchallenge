@@ -130,17 +130,24 @@ export default function IncidentList({
                   incident.payload?.commonLabels?.severity;
                 const palette = getSeverityPalette(severity);
                 return (
-                  <li key={incident.id}>
+                  <li key={incident.id} className="p-1">
                     <button
                       type="button"
                       onClick={() => onSelect(incident.id)}
                       className={cn(
-                        "w-full space-y-2 rounded-none px-5 py-4 text-left transition-colors",
+                        "group relative w-full space-y-2 rounded-2xl border border-transparent px-6 py-4 text-left transition-all",
                         isSelected
-                          ? `bg-muted/70 ${palette.glow}`
-                          : "hover:bg-muted/40"
+                          ? `bg-linear-to-r from-primary/10 via-primary/5 to-transparent text-foreground shadow-[0_18px_35px_rgba(15,23,42,0.08)] ring-1 ring-primary/20 dark:from-primary/25 dark:via-primary/10 ${palette.glow}`
+                          : "hover:border-muted/60 hover:bg-muted/30"
                       )}
                     >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "pointer-events-none absolute inset-y-3 left-3 w-1.5 rounded-full bg-transparent opacity-0 transition-all duration-200",
+                          isSelected && `${palette.dot} opacity-100`
+                        )}
+                      />
                       <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
                         <span>{formatDateTime(incident.createdAt)}</span>
                         <span>{timeAgo(incident.createdAt)}</span>

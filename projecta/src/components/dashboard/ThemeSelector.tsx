@@ -2,6 +2,7 @@
 
 import { Monitor, MoonStar, SunMedium } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -17,13 +18,34 @@ interface ThemeSelectorProps {
 
 export default function ThemeSelector({ className }: ThemeSelectorProps) {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => setMounted(true));
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div
+        className={cn(
+          "h-11 w-[280px] animate-pulse rounded-full border border-border/40 bg-muted/60",
+          className
+        )}
+        aria-hidden
+      />
+    );
+  }
 
   const selection = theme ?? "system";
 
   return (
     <div
       className={cn(
-        "rounded-full border border-border bg-muted/60 px-1 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm",
+        "flex items-center gap-1 rounded-full border border-border/60 bg-card/80 px-1 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-muted-foreground shadow-[0_12px_35px_rgba(15,23,42,0.08)] ring-1 ring-border/50 backdrop-blur-xl",
         className
       )}
     >
@@ -38,9 +60,9 @@ export default function ThemeSelector({ className }: ThemeSelectorProps) {
               onClick={() => setTheme(value)}
               aria-pressed={isActive}
               className={cn(
-                "flex min-w-[88px] flex-1 items-center justify-center gap-2 rounded-full px-3 py-1.5 font-semibold transition",
+                "relative flex min-w-24 flex-1 items-center justify-center gap-2 rounded-full px-3 py-1.5 text-[11px] tracking-[0.08em] transition-all",
                 isActive
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-linear-to-r from-primary to-primary/80 text-primary-foreground shadow-md"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
