@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import ThemeSelector from "@/components/theme/ThemeSelector";
@@ -10,19 +10,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import type {
+  ScheduleAnchor,
+  ScheduleDuration,
+  ScheduleMode,
+  ScheduleRecord,
+} from "@/lib/scheduler/types";
 
 // ---------------- types ----------------
-type Mode = "relative" | "aligned";
-
-type Duration = Readonly<{
-  years: number;
-  months: number;
-  days: number;
-  hours: number;
-  minutes: number;
-}>;
-
-type AlignedTime = Readonly<{ hour: number; minute: number; second: number }>;
+type Mode = ScheduleMode;
+type Duration = ScheduleDuration;
+type AlignedTime = ScheduleAnchor;
 
 type QuickPreset = Readonly<{
   label: string;
@@ -133,6 +131,13 @@ function formatDateTime(d: Date) {
   });
 }
 
+function formatIsoTimestamp(value?: string | null) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return formatDateTime(parsed);
+}
+
 function formatClock(time: AlignedTime) {
   const pad = (v: number) => v.toString().padStart(2, "0");
   return `${pad(time.hour)}:${pad(time.minute)}:${pad(time.second)}`;
@@ -148,21 +153,34 @@ export default function ScheduleSelector() {
     useState<AlignedTime>(DEFAULT_ALIGNED_TIME);
 
   const anchorClock = useMidnight ? DEFAULT_ALIGNED_TIME : alignedTime;
+  const [schedules, setSchedules] = useState<ScheduleRecord[]>([]);
+  const [loadingSchedules, setLoadingSchedules] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const updateDuration = useCallback((key: keyof Duration, value: number) => {
-    const max = MAX[key];
-    setDuration((d) => ({ ...d, [key]: clampInt(value, 0, max) }));
+  const loadSchedules = useCallback(async () => {
+    setLoadingSchedules(true);
+    try {
+      const response = await fetch("/api/schedules", { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok || !json?.ok) {
+        throw new Error(json?.error ?? "Failed to load schedules");
+      }
+      setErrorMessage(null);
+      setSchedules(json.schedules ?? []);
+    } catch (err) {
+      console.error("[scheduler] failed to load", err);
+      setErrorMessage("Tidak bisa memuat jadwal tersimpan");
+    } finally {
+      setLoadingSchedules(false);
+    }
   }, []);
 
-  const isPresetActive = useCallback(
-    (p: Duration) =>
-      duration.years === p.years &&
-      duration.months === p.months &&
-      duration.days === p.days &&
-      duration.hours === p.hours &&
-      duration.minutes === p.minutes,
-    [duration]
-  );
+  useEffect(() => {
+    loadSchedules();
+  }, [loadSchedules]);
 
   const preview = useMemo(() => {
     if (isEmptyDuration(duration)) return null;
@@ -195,6 +213,74 @@ export default function ScheduleSelector() {
       timeline,
     };
   }, [mode, duration, anchorClock]);
+
+  const handleSave = useCallback(async () => {
+    if (!preview) return;
+    setSaving(true);
+    setStatusMessage(null);
+    setErrorMessage(null);
+    try {
+      const response = await fetch("/api/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: preview.title,
+          mode,
+          duration,
+          anchor: mode === "aligned" ? anchorClock : undefined,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json?.ok) {
+        throw new Error(json?.error ?? "Failed to save schedule");
+      }
+      setStatusMessage(`Jadwal "${json.schedule?.name ?? "baru"}" tersimpan`);
+      await loadSchedules();
+    } catch (err) {
+      console.error("[scheduler] failed to save", err);
+      setErrorMessage((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }, [anchorClock, duration, loadSchedules, mode, preview]);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      setDeletingId(id);
+      setErrorMessage(null);
+      try {
+        const response = await fetch(`/api/schedules/${id}`, {
+          method: "DELETE",
+        });
+        const json = await response.json().catch(() => ({ ok: response.ok }));
+        if (!response.ok || !json?.ok) {
+          throw new Error(json?.error ?? "Failed to delete schedule");
+        }
+        await loadSchedules();
+      } catch (err) {
+        console.error("[scheduler] failed to delete", err);
+        setErrorMessage((err as Error).message);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [loadSchedules]
+  );
+
+  const updateDuration = useCallback((key: keyof Duration, value: number) => {
+    const max = MAX[key];
+    setDuration((d) => ({ ...d, [key]: clampInt(value, 0, max) }));
+  }, []);
+
+  const isPresetActive = useCallback(
+    (p: Duration) =>
+      duration.years === p.years &&
+      duration.months === p.months &&
+      duration.days === p.days &&
+      duration.hours === p.hours &&
+      duration.minutes === p.minutes,
+    [duration]
+  );
 
   const anchorSummary =
     mode === "aligned"
@@ -426,11 +512,28 @@ export default function ScheduleSelector() {
                 </p>
               </div>
 
-              <Button size="lg" className="w-full" disabled={!preview}>
-                {mode === "relative"
+              <Button
+                size="lg"
+                className="w-full"
+                disabled={!preview || saving}
+                onClick={handleSave}
+              >
+                {saving
+                  ? "Saving cadence..."
+                  : mode === "relative"
                   ? "Save flexible cadence"
                   : "Save aligned cadence"}
               </Button>
+              {(statusMessage || errorMessage) && (
+                <p
+                  className={cn(
+                    "text-sm",
+                    errorMessage ? "text-destructive" : "text-muted-foreground"
+                  )}
+                >
+                  {errorMessage ?? statusMessage}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -523,10 +626,94 @@ export default function ScheduleSelector() {
                 )}
               </CardContent>
             </Card>
+
+            <SavedSchedulesCard
+              schedules={schedules}
+              loading={loadingSchedules}
+              onDelete={handleDelete}
+              deletingId={deletingId}
+            />
           </div>
         </section>
       </div>
     </div>
+  );
+}
+
+function SavedSchedulesCard({
+  schedules,
+  loading,
+  deletingId,
+  onDelete,
+}: {
+  schedules: ScheduleRecord[];
+  loading: boolean;
+  deletingId: string | null;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <Card className="border-none bg-card/80 shadow-xl ring-1 ring-border/60">
+      <CardContent className="space-y-4 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase text-muted-foreground">Scheduler</p>
+            <h3 className="text-lg font-semibold">Saved cadences</h3>
+          </div>
+          <Badge variant="outline" className="rounded-full">
+            {loading ? "Loading" : `${schedules.length} active`}
+          </Badge>
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">
+            Fetching saved runs...
+          </p>
+        ) : schedules.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Belum ada jadwal yang disimpan.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {schedules.map((schedule) => (
+              <div
+                key={schedule.id}
+                className="rounded-2xl border border-border/60 bg-background/80 p-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold">{schedule.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Next run: {formatIsoTimestamp(schedule.nextRunAt)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Last window:{" "}
+                      {formatIsoTimestamp(schedule.lastRange?.start)} {"->"}{" "}
+                      {formatIsoTimestamp(schedule.lastRange?.end)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Window length: {formatDuration(schedule.duration)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant="glow" className="rounded-full">
+                      {schedule.mode === "relative" ? "Async" : "Clock"}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onDelete(schedule.id)}
+                      disabled={deletingId === schedule.id}
+                    >
+                      {deletingId === schedule.id ? "Removing..." : "Remove"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

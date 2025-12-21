@@ -25,35 +25,91 @@ interface IncidentListProps {
   onSelect: (id: string) => void;
 }
 
+interface FilterOption {
+  key: string;
+  label: string;
+  match: (incident: IncidentRecord) => boolean;
+}
+
 const truncate = (value: string, max = 120): string => {
   if (!value) return "(ringkasan kosong)";
   return value.length > max ? `${value.slice(0, max)}…` : value;
 };
+
+const deriveSeverity = (incident: IncidentRecord) => {
+  const severity =
+    incident.normalizedLogs[0]?.severity ??
+    incident.payload?.commonLabels?.severity;
+
+  if (severity) {
+    return severity;
+  }
+
+  const receiver = incident.payload?.receiver;
+  if (receiver?.toLowerCase() === "scheduler") {
+    return "scheduler";
+  }
+
+  return undefined;
+};
+
+const FILTER_OPTIONS: FilterOption[] = [
+  {
+    key: "fatal",
+    label: "Fatal",
+    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "fatal",
+  },
+  {
+    key: "error",
+    label: "Error",
+    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "error",
+  },
+  {
+    key: "warn",
+    label: "Warn",
+    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "warn",
+  },
+  {
+    key: "info",
+    label: "Info",
+    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "info",
+  },
+  {
+    key: "scheduler",
+    label: "Scheduler",
+    match: (incident) => {
+      const severity = deriveSeverity(incident)?.toLowerCase();
+      if (severity === "scheduler") {
+        return true;
+      }
+      return (incident.payload?.receiver ?? "").toLowerCase() === "scheduler";
+    },
+  },
+];
 
 export default function IncidentList({
   incidents,
   selectedId,
   onSelect,
 }: IncidentListProps) {
-  const [severityFilter, setSeverityFilter] = useState<string | null>(null);
+  const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
   const totalNormalized = incidents.reduce(
     (acc, incident) => acc + incident.normalizedLogs.length,
     0
   );
 
+  const activeFilter = useMemo(() => {
+    return (
+      FILTER_OPTIONS.find((option) => option.key === activeFilterKey) ?? null
+    );
+  }, [activeFilterKey]);
+
   const filteredIncidents = useMemo(() => {
-    if (!severityFilter) return incidents;
-    return incidents.filter((incident) => {
-      const severity =
-        incident.normalizedLogs[0]?.severity ??
-        incident.payload?.commonLabels?.severity;
-      return severity?.toLowerCase() === severityFilter;
-    });
-  }, [incidents, severityFilter]);
+    if (!activeFilter) return incidents;
+    return incidents.filter((incident) => activeFilter.match(incident));
+  }, [incidents, activeFilter]);
 
-  const available = severityFilter ? filteredIncidents : incidents;
-
-  const activeCount = available.length;
+  const activeCount = filteredIncidents.length;
 
   return (
     <Card>
@@ -78,14 +134,16 @@ export default function IncidentList({
           </Badge>
         </div>
         <div className="flex flex-wrap gap-2">
-          {["fatal", "error", "warn", "info"].map((value) => {
-            const active = severityFilter === value;
+          {FILTER_OPTIONS.map((option) => {
+            const active = activeFilterKey === option.key;
             return (
               <button
-                key={value}
+                key={option.key}
                 type="button"
                 onClick={() =>
-                  setSeverityFilter((prev) => (prev === value ? null : value))
+                  setActiveFilterKey((prev) =>
+                    prev === option.key ? null : option.key
+                  )
                 }
                 aria-pressed={active}
                 className={cn(
@@ -95,7 +153,7 @@ export default function IncidentList({
                     : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 )}
               >
-                {value}
+                {option.label}
               </button>
             );
           })}
@@ -103,19 +161,19 @@ export default function IncidentList({
       </CardHeader>
 
       <CardContent className="p-0">
-        {available.length === 0 ? (
+        {filteredIncidents.length === 0 ? (
           <div className="flex h-56 flex-col items-center justify-center gap-3 text-center text-muted-foreground">
             <Badge
               variant="outline"
               className="text-[10px] uppercase tracking-[0.3em]"
             >
-              {severityFilter ? `Filter ${severityFilter}` : "Menunggu data"}
+              {activeFilter ? `Filter ${activeFilter.label}` : "Menunggu data"}
             </Badge>
             <p className="text-xl font-semibold text-foreground">
               Belum ada data
             </p>
             <p className="text-sm text-muted-foreground">
-              {severityFilter
+              {activeFilter
                 ? "Tidak ada incident yang cocok dengan filter ini."
                 : "Kirim payload webhook dari Alertmanager untuk mengisi timeline."}
             </p>
@@ -123,11 +181,9 @@ export default function IncidentList({
         ) : (
           <ScrollArea className="h-[72vh]">
             <ul className="divide-y divide-border/60">
-              {available.map((incident) => {
+              {filteredIncidents.map((incident) => {
                 const isSelected = incident.id === selectedId;
-                const severity =
-                  incident.normalizedLogs[0]?.severity ??
-                  incident.payload?.commonLabels?.severity;
+                const severity = deriveSeverity(incident);
                 const palette = getSeverityPalette(severity);
                 return (
                   <li key={incident.id} className="p-1">

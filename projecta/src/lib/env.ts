@@ -12,6 +12,11 @@ const parseNumberEnv = (value: string | undefined, fallback: number) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const sanitizeQueueName = (value: string | undefined) => {
+    const fallback = value && value.trim().length > 0 ? value.trim() : "projecta-incident-scheduler";
+    return fallback.replace(/[^A-Za-z0-9_-]/g, "-");
+};
+
 export const signozConfig = {
     baseUrl: process.env.SIGNOZ_BASE_URL ?? "http://localhost:8080",
     apiKey: requireEnv("SIGNOZ_API_KEY"),
@@ -30,4 +35,17 @@ export const mongoConfig = {
     uri: process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/projecta",
     dbName: process.env.MONGODB_DB ?? "projecta",
     incidentsCollection: process.env.MONGODB_INCIDENTS_COLLECTION ?? "incident_summaries",
+};
+
+export const redisConfig = {
+    url: process.env.REDIS_URL,
+    host: process.env.REDIS_HOST ?? "127.0.0.1",
+    port: parseNumberEnv(process.env.REDIS_PORT, 6379),
+    username: process.env.REDIS_USERNAME,
+    password: process.env.REDIS_PASSWORD,
+};
+
+export const schedulerConfig = {
+    queueName: sanitizeQueueName(process.env.SCHEDULER_QUEUE_NAME),
+    minIntervalMs: parseNumberEnv(process.env.SCHEDULER_MIN_INTERVAL_MS, 60_000),
 };
