@@ -123,6 +123,40 @@ export async function GET() {
 			status: 500,
 			context: { exporter: "OTLP", endpoint: "signoz-collector:4317" },
 		},
+
+		// 🧩 Dependencies / Integrations
+		{
+			msg: "Downstream dependency unavailable",
+			error: "inventory-search service is not reachable",
+			code: "DEPENDENCY_DOWN",
+			status: 503,
+			context: { service: "inventory-search", region: "us-central1" },
+		},
+		{
+			msg: "Webhook delivery permanently failed",
+			error: "Exceeded retry attempts for webhook target",
+			code: "WEBHOOK_DEAD_LETTER",
+			status: 410,
+			context: { target: "https://hooks.partner.io/order", attempts: 5 },
+		},
+
+		// 📊 Data Quality
+		{
+			msg: "Data integrity violation detected",
+			error: "Checksum mismatch during archival",
+			code: "DATA_INTEGRITY_ERR",
+			status: 422,
+			context: { batch_id: `archive-${Math.floor(Math.random() * 1000)}` },
+		},
+
+		// ⚙️ Background Work
+		{
+			msg: "Background job retries exhausted",
+			error: "Job reached max retry attempts",
+			code: "JOB_RETRY_EXCEEDED",
+			status: 500,
+			context: { job_id: `job-${Math.floor(Math.random() * 5000)}`, queue: "emails" },
+		},
 	];
 
 

@@ -21,6 +21,24 @@ export async function GET() {
 			code: "DISK_FULL",
 			context: { mount: "/", usage: "100%" },
 		},
+		{
+			msg: "Primary data center unreachable",
+			error: "Control plane detected total loss of connectivity",
+			code: "SITE_OUTAGE",
+			context: { region: "us-central", failover_initiated: true },
+		},
+		{
+			msg: "Secret decryption failed during boot",
+			error: "Hardware security module rejected request",
+			code: "SECRETS_UNAVAILABLE",
+			context: { hsm_cluster: "hsm-prod-03", attempts: 3 },
+		},
+		{
+			msg: "Blocking migration failed irrecoverably",
+			error: "ALTER TABLE command aborted cluster-wide",
+			code: "MIGRATION_FATAL",
+			context: { migration_id: `mig-${Math.floor(Math.random() * 1000)}` },
+		},
 	];
 
 	const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
