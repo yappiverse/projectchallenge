@@ -6,12 +6,17 @@ import { ChevronDown } from "lucide-react";
 import type { IncidentRecord } from "@/lib/incident/storage";
 import {
   formatDateTime,
+  formatIncidentSeverity,
   getSeverityPalette,
+  getIncidentSeveritySpectrum,
+  describeSeverityLabel,
+  timeAgo,
 } from "@/components/dashboard/helpers";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { extractIncidentInsights } from "@/lib/incident/summary-insights";
 
 interface IncidentDetailsProps {
   incident: IncidentRecord;
@@ -32,6 +37,24 @@ const StatTile = ({
     </p>
     <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
     <p className="text-sm text-muted-foreground">{meta}</p>
+  </div>
+);
+
+const SummaryMetaCard = ({
+  label,
+  value,
+  meta,
+}: {
+  label: string;
+  value: string;
+  meta?: string;
+}) => (
+  <div className="rounded-2xl border border-border/70 bg-card/80 p-3 shadow-sm">
+    <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground">
+      {label}
+    </p>
+    <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
+    {meta && <p className="text-[11px] text-muted-foreground">{meta}</p>}
   </div>
 );
 
@@ -168,9 +191,21 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
   const [logTab, setLogTab] = useState<"normalized" | "raw">("normalized");
   const labels = incident.payload.commonLabels ?? {};
   const annotations = incident.payload.commonAnnotations ?? {};
-  const primarySeverity =
-    incident.normalizedLogs[0]?.severity ?? labels.severity;
-  const palette = getSeverityPalette(primarySeverity);
+  const { label: severityLabel, primary: paletteKey } =
+    formatIncidentSeverity(incident);
+  const severitySpectrum = getIncidentSeveritySpectrum(incident);
+  const combinedSeverityLabel =
+    severitySpectrum.length > 1
+      ? severitySpectrum.map((key) => describeSeverityLabel(key)).join(" / ")
+      : severityLabel;
+  const palette = getSeverityPalette(paletteKey);
+  const insights = useMemo(() => {
+    if (incident.insights) {
+      return incident.insights;
+    }
+    return extractIncidentInsights(incident.summaryText);
+  }, [incident]);
+  const actionItems = insights?.actionItems ?? [];
 
   const highlights = useMemo(() => {
     const text = incident.summaryText ?? "";
@@ -178,7 +213,7 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
       .split(/\n+/)
       .map((line) => line.trim())
       .filter(Boolean)
-      .slice(0, 4);
+      .slice(0, 8);
   }, [incident.summaryText]);
 
   const uniqueServices = useMemo(() => {
@@ -195,6 +230,60 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
     : [incident.summaryText ?? "Ringkasan belum tersedia."].filter(Boolean);
   const summaryChunks = summaryParagraphs.map((entry) => toSummaryChunk(entry));
 
+  const firstAlert = incident.payload.alerts?.[0];
+  const receiverLabel = incident.payload.receiver
+    ? incident.payload.receiver.replace(/_/g, " ")
+    : "Webhook default";
+  const serviceName =
+    incident.payload.commonLabels?.service ??
+    incident.payload.commonLabels?.job ??
+    firstAlert?.labels?.service ??
+    firstAlert?.labels?.job ??
+    incident.normalizedLogs[0]?.service ??
+    "project-giver";
+  const alertPeriod =
+    incident.payload.commonAnnotations?.period ??
+    firstAlert?.annotations?.period ??
+    incident.payload.commonAnnotations?.runbook ??
+    "-";
+  const aiStatus = incident.geminiResponse
+    ? "Ringkasan berhasil"
+    : "Gemini dilewati";
+  const summaryMeta = [
+    {
+      label: "Generated",
+      value: formatDateTime(incident.createdAt),
+      meta: timeAgo(incident.createdAt),
+    },
+    {
+      label: "Service",
+      value: serviceName,
+      meta: incident.payload.commonLabels?.environment ?? "Lingkup alert",
+    },
+    {
+      label: "Period",
+      value: alertPeriod,
+      meta: "Jendela analisis",
+    },
+    {
+      label: "Log coverage",
+      value: `${incident.normalizedLogs.length} / ${incident.rawLogs.length}`,
+      meta: "Curated vs raw",
+    },
+    {
+      label: "Receiver",
+      value: receiverLabel,
+      meta: incident.payload.commonLabels?.alertname ?? "Alert route",
+    },
+    {
+      label: "AI status",
+      value: aiStatus,
+      meta: incident.geminiResponse
+        ? "Gemini responded"
+        : "Cek quota atau rate limit",
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-5 text-foreground">
       <CollapsibleSection
@@ -208,37 +297,56 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
             variant="outline"
             className={`flex items-center gap-2 px-4 py-2 text-[11px] tracking-[0.3em] ${palette.chip} ${palette.chipText}`}
           >
-            <span className={`h-2 w-2 rounded-full ${palette.dot}`} />
-            <span className="capitalize">{primarySeverity ?? "n/a"}</span>
+            <div className="flex items-center gap-1">
+              {severitySpectrum.map((key) => (
+                <span
+                  key={`${incident.id}-${key}`}
+                  className={`h-2 w-2 rounded-full ${
+                    getSeverityPalette(key).dot
+                  }`}
+                />
+              ))}
+            </div>
+            <span>{combinedSeverityLabel}</span>
           </Badge>
         }
       >
-        <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="space-y-3 lg:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                  Gemini summary
-                </p>
-                <Badge
-                  variant="outline"
-                  className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.3em]"
-                >
-                  AI generated
-                </Badge>
-              </div>
-              <div className="space-y-4 rounded-2xl border border-border p-5 shadow-lg transition-colors dark:from-[#161a27] dark:via-[#0f1117] dark:to-[#05070a]">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3 text-xs text-muted-foreground">
-                  <p className="font-semibold text-foreground">
-                    {incident.payload.commonLabels?.alertname ?? "Incident"}
-                  </p>
-                  <span>{formatDateTime(incident.createdAt)}</span>
+        <div className="space-y-5">
+          <div className="grid gap-3 min-[520px]:grid-cols-2 xl:grid-cols-3">
+            {summaryMeta.map((meta) => (
+              <SummaryMetaCard
+                key={`${incident.id}-${meta.label}`}
+                label={meta.label}
+                value={meta.value}
+                meta={meta.meta}
+              />
+            ))}
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[1.4fr,0.9fr]">
+            <div className="space-y-4">
+              <div className="space-y-4 rounded-3xl border border-border/80 bg-card/90 p-5 shadow-lg">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                      Gemini summary
+                    </p>
+                    <p className="font-semibold text-foreground">
+                      {incident.payload.commonLabels?.alertname ?? "Incident"}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.3em]"
+                  >
+                    AI generated
+                  </Badge>
                 </div>
-                <div className="space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
                   {summaryChunks.map((chunk, idx) => (
                     <div
                       key={`${chunk.detail}-${idx}`}
-                      className="flex gap-3 rounded-2xl border border-border bg-background p-3 text-sm text-muted-foreground shadow-sm transition-colors dark:bg-white/5"
+                      className="flex gap-3 rounded-2xl border border-border bg-background/80 p-3 text-sm text-muted-foreground shadow-sm transition-colors"
                     >
                       <span className="text-xl leading-none text-foreground">
                         {chunk.icon}
@@ -255,28 +363,85 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
                       </div>
                     </div>
                   ))}
+                  {summaryChunks.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
+                      Ringkasan belum tersedia.
+                    </div>
+                  )}
                 </div>
               </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <InsightPanel
+                  title="🧠 Hasil Analisis"
+                  description="Penjelasan singkat kondisi layanan"
+                  body={
+                    insights?.analysis ??
+                    "Belum ada analisis yang tersimpan untuk insiden ini."
+                  }
+                />
+                <InsightPanel
+                  title="🔥 Impact Level"
+                  description="Dampak terhadap pengguna/sistem"
+                  body={
+                    insights?.impact ??
+                    "Belum ada informasi dampak yang tersedia."
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                Prompt
-              </p>
-              <details className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-                <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-muted-foreground">
-                  Tampilkan prompt penuh
-                </summary>
-                <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">
-                  {incident.prompt}
+
+            <div className="space-y-4">
+              <div className="space-y-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.3em]">
+                  <span>Prompt</span>
+                  <Badge
+                    variant="outline"
+                    className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.3em]"
+                  >
+                    {aiStatus}
+                  </Badge>
+                </div>
+                <div className="max-h-36 overflow-y-auto rounded-xl border border-border/60 bg-background/80 p-3 text-xs font-mono text-foreground">
+                  {incident.prompt || "Prompt belum tersedia."}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Prompt lengkap disimpan untuk debugging Gemini.
                 </p>
-              </details>
-              <div className="rounded-xl border border-dashed border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground">
-                {incident.geminiResponse
-                  ? "Ringkasan berhasil"
-                  : "Gemini dilewati / rate limited"}
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card/80 p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                    ✅ Action Items
+                  </p>
+                  <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                    {actionItems.length} tugas
+                  </span>
+                </div>
+                {actionItems.length ? (
+                  <ol className="mt-3 space-y-2 text-sm text-foreground">
+                    {actionItems.map((item, index) => (
+                      <li
+                        key={`${incident.id}-action-${index}`}
+                        className="flex gap-3 rounded-xl border border-border/60 bg-background/70 p-3"
+                      >
+                        <span className="text-xs font-semibold text-muted-foreground">
+                          {index + 1}.
+                        </span>
+                        <span className="wrap-break-word">{item}</span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-dashed border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
+                    Rekomendasi tindakan belum tersedia untuk insiden ini.
+                  </div>
+                )}
               </div>
             </div>
           </div>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile
               title="Normalized"
@@ -418,3 +583,23 @@ export default function IncidentDetails({ incident }: IncidentDetailsProps) {
     </div>
   );
 }
+
+const InsightPanel = ({
+  title,
+  description,
+  body,
+}: {
+  title: string;
+  description: string;
+  body: string;
+}) => (
+  <div className="space-y-2 rounded-2xl border border-border bg-card/80 p-4 shadow-sm">
+    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+      {title}
+    </p>
+    <p className="text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
+      {description}
+    </p>
+    <p className="text-sm text-foreground">{body}</p>
+  </div>
+);

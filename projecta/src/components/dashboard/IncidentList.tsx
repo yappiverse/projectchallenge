@@ -5,6 +5,11 @@ import {
   formatDateTime,
   timeAgo,
   getSeverityPalette,
+  formatIncidentSeverity,
+  incidentMatchesSeverity,
+  getIncidentSeveritySpectrum,
+  describeSeverityLabel,
+  type SeverityKey,
 } from "@/components/dashboard/helpers";
 import {
   Card,
@@ -18,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, XCircle } from "lucide-react";
 
 interface IncidentListProps {
   incidents: IncidentRecord[];
@@ -27,7 +32,7 @@ interface IncidentListProps {
 }
 
 interface FilterOption {
-  key: string;
+  key: SeverityKey;
   label: string;
   match: (incident: IncidentRecord) => boolean;
 }
@@ -37,54 +42,44 @@ const truncate = (value: string, max = 120): string => {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 };
 
-const deriveSeverity = (incident: IncidentRecord) => {
-  const severity =
-    incident.normalizedLogs[0]?.severity ??
-    incident.payload?.commonLabels?.severity;
-
-  if (severity) {
-    return severity;
+const matchesSeverity = (
+  incident: IncidentRecord,
+  severity: SeverityKey
+): boolean => {
+  if (incidentMatchesSeverity(incident, severity)) {
+    return true;
   }
-
-  const receiver = incident.payload?.receiver;
-  if (receiver?.toLowerCase() === "scheduler") {
-    return "scheduler";
-  }
-
-  return undefined;
+  const spectrum = getIncidentSeveritySpectrum(incident);
+  return spectrum.includes(severity);
 };
 
 const FILTER_OPTIONS: FilterOption[] = [
   {
     key: "fatal",
     label: "Fatal",
-    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "fatal",
+    match: (incident) => matchesSeverity(incident, "fatal"),
   },
   {
     key: "error",
     label: "Error",
-    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "error",
+    match: (incident) => matchesSeverity(incident, "error"),
   },
   {
     key: "warn",
     label: "Warn",
-    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "warn",
+    match: (incident) => matchesSeverity(incident, "warn"),
   },
   {
     key: "info",
     label: "Info",
-    match: (incident) => deriveSeverity(incident)?.toLowerCase() === "info",
+    match: (incident) => matchesSeverity(incident, "info"),
   },
   {
     key: "scheduler",
     label: "Scheduler",
-    match: (incident) => {
-      const severity = deriveSeverity(incident)?.toLowerCase();
-      if (severity === "scheduler") {
-        return true;
-      }
-      return (incident.payload?.receiver ?? "").toLowerCase() === "scheduler";
-    },
+    match: (incident) =>
+      matchesSeverity(incident, "scheduler") ||
+      (incident.payload?.receiver ?? "").toLowerCase() === "scheduler",
   },
 ];
 
@@ -115,25 +110,36 @@ export default function IncidentList({
   selectedId,
   onSelect,
 }: IncidentListProps) {
-  const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
+  const [activeFilterKeys, setActiveFilterKeys] = useState<SeverityKey[]>([]);
   const [traceFilter, setTraceFilter] = useState<string>("");
   const totalNormalized = incidents.reduce(
     (acc, incident) => acc + incident.normalizedLogs.length,
     0
   );
 
-  const activeFilter = useMemo(() => {
-    return (
-      FILTER_OPTIONS.find((option) => option.key === activeFilterKey) ?? null
+  const activeFilters = useMemo(() => {
+    if (!activeFilterKeys.length) return [];
+    return FILTER_OPTIONS.filter((option) =>
+      activeFilterKeys.includes(option.key)
     );
-  }, [activeFilterKey]);
+  }, [activeFilterKeys]);
+
+  const activeFilterLabel = useMemo(() => {
+    if (!activeFilters.length) return null;
+    return activeFilters.map((option) => option.label).join(" + ");
+  }, [activeFilters]);
 
   const filteredIncidents = useMemo(() => {
     const traceQ = traceFilter.trim().toLowerCase();
 
     return incidents.filter((incident) => {
-      if (activeFilter && !activeFilter.match(incident)) {
-        return false;
+      if (activeFilters.length) {
+        const matchesAnyFilter = activeFilters.some((option) =>
+          option.match(incident)
+        );
+        if (!matchesAnyFilter) {
+          return false;
+        }
       }
 
       if (!traceQ) {
@@ -153,7 +159,7 @@ export default function IncidentList({
 
       return matchesInNormalized || matchesInRaw;
     });
-  }, [incidents, activeFilter, traceFilter]);
+  }, [incidents, activeFilters, traceFilter]);
 
   const activeCount = filteredIncidents.length;
 
@@ -179,16 +185,18 @@ export default function IncidentList({
             {activeCount} aktif
           </Badge>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {FILTER_OPTIONS.map((option) => {
-            const active = activeFilterKey === option.key;
+            const active = activeFilterKeys.includes(option.key);
             return (
               <button
                 key={option.key}
                 type="button"
                 onClick={() =>
-                  setActiveFilterKey((prev) =>
-                    prev === option.key ? null : option.key
+                  setActiveFilterKeys((prev) =>
+                    prev.includes(option.key)
+                      ? prev.filter((key) => key !== option.key)
+                      : [...prev, option.key]
                   )
                 }
                 aria-pressed={active}
@@ -203,6 +211,16 @@ export default function IncidentList({
               </button>
             );
           })}
+          {activeFilterKeys.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveFilterKeys([])}
+              className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground transition hover:border-destructive/50 hover:text-destructive"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              Clear
+            </button>
+          )}
         </div>
 
         <div className="mb-1 flex items-center">
@@ -251,14 +269,16 @@ export default function IncidentList({
               variant="outline"
               className="text-[10px] uppercase tracking-[0.3em]"
             >
-              {activeFilter ? `Filter ${activeFilter.label}` : "Menunggu data"}
+              {activeFilterLabel
+                ? `Filter ${activeFilterLabel}`
+                : "Menunggu data"}
             </Badge>
             <p className="text-xl font-semibold text-foreground">
               Belum ada data
             </p>
             <p className="text-sm text-muted-foreground">
-              {activeFilter
-                ? "Tidak ada incident yang cocok dengan filter ini."
+              {activeFilterLabel
+                ? "Tidak ada incident yang cocok dengan kombinasi filter ini."
                 : "Kirim payload webhook dari Alertmanager untuk mengisi timeline."}
             </p>
           </div>
@@ -267,8 +287,16 @@ export default function IncidentList({
             <ul className="divide-y divide-border/60">
               {filteredIncidents.map((incident) => {
                 const isSelected = incident.id === selectedId;
-                const severity = deriveSeverity(incident);
-                const palette = getSeverityPalette(severity);
+                const { label: severityLabel, primary: paletteKey } =
+                  formatIncidentSeverity(incident);
+                const palette = getSeverityPalette(paletteKey);
+                const severitySpectrum = getIncidentSeveritySpectrum(incident);
+                const combinedLabel =
+                  severitySpectrum.length > 1
+                    ? severitySpectrum
+                        .map((key) => describeSeverityLabel(key))
+                        .join(" / ")
+                    : severityLabel;
                 return (
                   <li key={incident.id} className="p-1">
                     <button
@@ -301,12 +329,17 @@ export default function IncidentList({
                             palette.chipText
                           )}
                         >
-                          <span
-                            className={`h-2 w-2 rounded-full ${palette.dot}`}
-                          />
-                          <span className="capitalize">
-                            {severity ?? "n/a"}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            {severitySpectrum.map((key) => (
+                              <span
+                                key={`${incident.id}-${key}`}
+                                className={`h-2 w-2 rounded-full ${
+                                  getSeverityPalette(key).dot
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span>{combinedLabel}</span>
                         </Badge>
                         <span className="font-semibold text-foreground">
                           {incident.payload.commonLabels?.alertname ??

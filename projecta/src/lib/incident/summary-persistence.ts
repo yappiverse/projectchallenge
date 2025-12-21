@@ -5,11 +5,15 @@ import type { WebhookPayload } from "@/lib/incident/alertmanager";
 import { saveIncidentRecord } from "@/lib/incident/storage";
 import { sendIncidentSummaryEmail } from "@/lib/email/resend";
 import { sendIncidentToTelegram } from "@/lib/telegram/send";
+import { extractIncidentInsights } from "@/lib/incident/summary-insights";
 
 export async function persistIncidentSummary(payload: WebhookPayload, result: IncidentSummaryResult) {
     console.log("\n===== INCIDENT SUMMARY =====\n");
     console.log(result.summaryText);
     console.log("\n============================\n");
+
+    const hasLogs = Array.isArray(result.logs) && result.logs.length > 0;
+    const insights = extractIncidentInsights(result.summaryText);
 
     await saveIncidentRecord({
         payload,
@@ -18,7 +22,13 @@ export async function persistIncidentSummary(payload: WebhookPayload, result: In
         normalizedLogs: result.logs,
         rawLogs: result.rawLogs,
         geminiResponse: result.geminiResponse,
+        insights,
     });
+
+    if (!hasLogs) {
+        console.warn("[incident] no logs available; skipping email/telegram notifications");
+        return;
+    }
 
     await maybeSendEmail(payload, result.summaryText);
     await maybeSendTelegram(payload, result.summaryText);

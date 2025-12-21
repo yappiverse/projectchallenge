@@ -7,6 +7,7 @@ import type { WebhookPayload } from "@/lib/incident/alertmanager";
 import { mongoConfig } from "@/lib/env";
 import { getCollection } from "@/lib/db/mongo";
 import type { NormalizedLog, SigNozLogRow } from "@/lib/signoz/types";
+import type { IncidentInsights } from "@/lib/incident/summary-insights";
 
 const MAX_STORED_RAW_LOGS = 200;
 let indexesEnsured = false;
@@ -27,6 +28,7 @@ export interface IncidentInsertInput {
     rawLogs: SigNozLogRow[];
     geminiResponse: GeminiResponse | null;
     payload: WebhookPayload;
+    insights?: IncidentInsights;
 }
 
 interface IncidentDocument extends IncidentInsertInput {
@@ -47,6 +49,7 @@ const toRecord = (doc: WithId<IncidentDocument>): IncidentRecord => ({
     rawLogs: doc.rawLogs,
     geminiResponse: doc.geminiResponse,
     payload: doc.payload,
+    insights: doc.insights,
 });
 
 const trimRawLogs = (rawLogs: SigNozLogRow[]): SigNozLogRow[] => {

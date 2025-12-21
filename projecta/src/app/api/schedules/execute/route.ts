@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { isAlertmanagerPayload, type WebhookPayload } from "@/lib/incident/alertmanager";
 import { generateIncidentSummary } from "@/lib/incident/incident-engine";
 import { persistIncidentSummary } from "@/lib/incident/summary-persistence";
+import { buildScheduleReportTemplate } from "@/lib/scheduler/prompt-template";
 import { getScheduleRecord } from "@/lib/scheduler/service";
+import type { ScheduleRecord } from "@/lib/scheduler/types";
+import type { NormalizedLog } from "@/lib/signoz/types";
 
 type ExecuteScheduleRequest = {
     start?: number | string;
@@ -22,14 +25,26 @@ export async function POST(request: Request) {
     try {
         const body = (await request.json()) as ExecuteScheduleRequest;
         const { start, end } = parseRange(body);
-        const payload = await resolvePayload(body);
-
+        const { payload, schedule } = await resolvePayload(body);
         const result = await generateIncidentSummary(payload, {
             logQuery: {
                 start,
                 end,
                 builderQueryOverrides: body?.logQuery?.builderQueryOverrides,
             },
+            normalization: {
+                dedupe: false,
+            },
+            template: ({ logs }) =>
+                buildScheduleReportTemplate({
+                    start,
+                    end,
+                    generatedAt: Date.now(),
+                    scheduleId: schedule?.id ?? body.scheduleId,
+                    scheduleName: schedule?.name ?? body?.name ?? payload.commonLabels?.alertname,
+                    labels: payload.commonLabels ?? {},
+                    serviceName: deriveServiceNameFromLogs(logs, payload.commonLabels),
+                }),
         });
 
         if (body?.persist !== false) {
@@ -50,6 +65,23 @@ export async function POST(request: Request) {
         console.error("[schedules/execute] failed", error);
         return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
     }
+}
+
+function deriveServiceNameFromLogs(
+    logs: NormalizedLog[],
+    labels?: Record<string, string | undefined>,
+): string | undefined {
+    for (const log of logs) {
+        if (log?.service) {
+            return log.service;
+        }
+    }
+    return (
+        labels?.["service.name"] ||
+        labels?.service ||
+        labels?.serviceName ||
+        labels?.["k8s.service.name"]
+    );
 }
 
 function parseRange(body: ExecuteScheduleRequest) {
@@ -74,17 +106,22 @@ function parseTimestamp(value: unknown): number {
     return NaN;
 }
 
-async function resolvePayload(body: ExecuteScheduleRequest): Promise<WebhookPayload> {
+interface ResolvedSchedulePayload {
+    payload: WebhookPayload;
+    schedule?: ScheduleRecord | null;
+}
+
+async function resolvePayload(body: ExecuteScheduleRequest): Promise<ResolvedSchedulePayload> {
     if (body?.scheduleId) {
         const schedule = await getScheduleRecord(body.scheduleId);
         if (!schedule?.payload) {
             throw new Error("Schedule payload missing");
         }
-        return schedule.payload;
+        return { payload: schedule.payload, schedule };
     }
 
     if (isAlertmanagerPayload(body?.payload)) {
-        return body.payload;
+        return { payload: body.payload };
     }
 
     const manualPayload: WebhookPayload & { status: "firing" } = {
@@ -95,5 +132,5 @@ async function resolvePayload(body: ExecuteScheduleRequest): Promise<WebhookPayl
         commonAnnotations: { summary: body?.summary ?? "Manual incident execution" },
     };
 
-    return manualPayload;
+    return { payload: manualPayload };
 }

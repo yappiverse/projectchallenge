@@ -1,3 +1,5 @@
+import type { IncidentRecord } from "@/lib/incident/storage";
+
 const fullFormatter = new Intl.DateTimeFormat("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -106,3 +108,116 @@ export const getSeverityPalette = (severity?: string): SeverityPalette => {
     const key = severity.toLowerCase();
     return severityPalettes[key] ?? severityPalettes.default;
 };
+
+export type SeverityKey = "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "scheduler";
+
+export const severityLabels: Record<SeverityKey, string> = {
+    fatal: "Fatal",
+    error: "Error",
+    warn: "Warn",
+    info: "Info",
+    debug: "Debug",
+    trace: "Trace",
+    scheduler: "Scheduler",
+};
+
+const severityAliasMap: Record<string, SeverityKey> = {
+    fatal: "fatal",
+    crit: "fatal",
+    critical: "fatal",
+    emergency: "fatal",
+    alert: "fatal",
+    high: "fatal",
+    error: "error",
+    err: "error",
+    severe: "error",
+    failure: "error",
+    warn: "warn",
+    warning: "warn",
+    caution: "warn",
+    medium: "warn",
+    info: "info",
+    informational: "info",
+    notice: "info",
+    low: "info",
+    debug: "debug",
+    trace: "trace",
+    scheduler: "scheduler",
+};
+
+const severityPriority: SeverityKey[] = ["fatal", "error", "warn", "info", "debug", "trace"];
+
+const allSeverityOrder: SeverityKey[] = [...severityPriority, "scheduler"];
+
+const normalizeSeverityToken = (value?: string | null): SeverityKey | undefined => {
+    if (!value || typeof value !== "string") return undefined;
+    const key = value.trim().toLowerCase();
+    if (!key) return undefined;
+    return severityAliasMap[key];
+};
+
+const deriveSeverityFromLogs = (incident: IncidentRecord): SeverityKey | undefined => {
+    const seen = new Set<SeverityKey>();
+    for (const log of incident.normalizedLogs ?? []) {
+        const mapped = normalizeSeverityToken(log.severity);
+        if (mapped) {
+            seen.add(mapped);
+        }
+    }
+    for (const key of severityPriority) {
+        if (seen.has(key)) {
+            return key;
+        }
+    }
+    return undefined;
+};
+
+const inferPayloadSeverity = (incident: IncidentRecord): SeverityKey | undefined => {
+    const candidate =
+        incident.payload?.commonLabels?.severity ??
+        incident.payload?.commonAnnotations?.severity ??
+        incident.payload?.alerts?.[0]?.labels?.severity ??
+        incident.payload?.alerts?.[0]?.annotations?.severity ??
+        (typeof incident.payload?.receiver === "string" ? incident.payload.receiver : undefined);
+
+    return normalizeSeverityToken(candidate);
+};
+
+export const formatIncidentSeverity = (
+    incident: IncidentRecord,
+): { primary: SeverityKey; label: string } => {
+    const receiver = incident.payload?.receiver?.toLowerCase();
+    if (receiver === "scheduler") {
+        return { primary: "scheduler", label: severityLabels.scheduler };
+    }
+
+    const inferred = inferPayloadSeverity(incident) ?? deriveSeverityFromLogs(incident) ?? "info";
+
+    return { primary: inferred, label: severityLabels[inferred] };
+};
+
+export const incidentMatchesSeverity = (incident: IncidentRecord, severity: string): boolean => {
+    const normalized = normalizeSeverityToken(severity) ?? "info";
+    return formatIncidentSeverity(incident).primary === normalized;
+};
+
+export const getIncidentSeveritySpectrum = (incident: IncidentRecord): SeverityKey[] => {
+    const spectrum = new Set<SeverityKey>();
+    const primary = formatIncidentSeverity(incident).primary;
+    spectrum.add(primary);
+
+    for (const log of incident.normalizedLogs ?? []) {
+        const mapped = normalizeSeverityToken(log.severity);
+        if (mapped) {
+            spectrum.add(mapped);
+        }
+    }
+
+    if (incident.payload?.receiver?.toLowerCase() === "scheduler") {
+        spectrum.add("scheduler");
+    }
+
+    return allSeverityOrder.filter((key) => spectrum.has(key));
+};
+
+export const describeSeverityLabel = (key: SeverityKey): string => severityLabels[key] ?? key;
