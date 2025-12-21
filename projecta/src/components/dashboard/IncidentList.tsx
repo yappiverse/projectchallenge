@@ -88,6 +88,28 @@ const FILTER_OPTIONS: FilterOption[] = [
   },
 ];
 
+type TraceableLogRow = {
+  trace_id?: string | number | null;
+};
+
+const extractTraceId = (row: unknown): string | null => {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+
+  const traceId = (row as TraceableLogRow).trace_id;
+
+  if (typeof traceId === "string") {
+    return traceId;
+  }
+
+  if (typeof traceId === "number") {
+    return traceId.toString();
+  }
+
+  return null;
+};
+
 export default function IncidentList({
   incidents,
   selectedId,
@@ -122,15 +144,12 @@ export default function IncidentList({
         Boolean(log.trace_id && log.trace_id.toLowerCase().includes(traceQ))
       );
 
-      const matchesInRaw =
-        incident.rawLogs && Array.isArray(incident.rawLogs)
-          ? incident.rawLogs.some((row: any) =>
-              Boolean(
-                row.trace_id &&
-                  String(row.trace_id).toLowerCase().includes(traceQ)
-              )
-            )
-          : false;
+      const matchesInRaw = Array.isArray(incident.rawLogs)
+        ? (incident.rawLogs as unknown[]).some((row) => {
+            const traceId = extractTraceId(row);
+            return Boolean(traceId && traceId.toLowerCase().includes(traceQ));
+          })
+        : false;
 
       return matchesInNormalized || matchesInRaw;
     });
