@@ -156,6 +156,28 @@ services:
       timeout: 10s
       retries: 5
 
+  # ---------- REDIS (SCHEDULER STATE) ----------
+  redis:
+    <<: *common
+    image: redis:7.4-alpine
+    container_name: signoz-redis
+    command:
+      - "redis-server"
+      - "--save"
+      - "60"
+      - "1"
+      - "--loglevel"
+      - "warning"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ---------- SCHEMA MIGRATORS ----------
   schema-migrator-sync:
     <<: *common
@@ -249,3 +271,5 @@ volumes:
     name: signoz-postgres
   mongo-data:
     name: signoz-mongo
+  redis-data:
+    name: signoz-redis

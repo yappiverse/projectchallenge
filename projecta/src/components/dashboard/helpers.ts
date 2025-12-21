@@ -83,6 +83,14 @@ const severityPalettes: Record<string, SeverityPalette> = {
         border: "border-fuchsia-200/70 dark:border-fuchsia-500/40",
         panel: "from-transparent via-transparent to-transparent",
     },
+    scheduler: {
+        chip: `${baseChip} border-emerald-200/80 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10`,
+        chipText: "text-emerald-700 dark:text-emerald-50",
+        dot: "bg-emerald-500",
+        glow: "ring-1 ring-emerald-200/70 dark:ring-emerald-500/40",
+        border: "border-emerald-200/70 dark:border-emerald-500/40",
+        panel: "from-transparent via-transparent to-transparent",
+    },
     default: {
         chip: `${baseChip} border-border`,
         chipText: baseText,

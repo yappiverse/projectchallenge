@@ -55,6 +55,15 @@ export async function requestGeminiSummary(
 
     if (!response.ok) {
         const text = await response.text();
+
+        if (response.status === 429) {
+            console.warn("[gemini] quota exceeded, skipping summary", {
+                status: response.status,
+                body: text.slice(0, 200),
+            });
+            return null;
+        }
+
         throw new Error(`[Gemini] ${response.status}: ${text.slice(0, 200)}`);
     }
 
