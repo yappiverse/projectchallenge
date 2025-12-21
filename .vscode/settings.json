@@ -1,5 +1,63 @@
 {
   "yaml.schemas": {
     "https://www.artillery.io/schema.json": []
+  },
+  "chat.mcp.serverSampling": {
+    "projectchallenge/.vscode/mcp.json: shadcn": {
+      "allowedModels": [
+        "copilot/claude-sonnet-4.5",
+        "copilot/auto",
+        "copilot/claude-haiku-4.5",
+        "copilot/gemini-2.5-pro",
+        "copilot/gemini-3-pro-preview",
+        "copilot/gpt-4.1",
+        "copilot/gpt-4o",
+        "copilot/gpt-5",
+        "copilot/gpt-5.1-codex",
+        "copilot/gpt-5.1-codex-mini"
+      ]
+    },
+    "projectchallenge/.vscode/mcp.json: Context7": {
+      "allowedModels": [
+        "copilot/claude-sonnet-4.5",
+        "copilot/auto",
+        "copilot/claude-haiku-4.5",
+        "copilot/gemini-2.5-pro",
+        "copilot/gemini-3-pro-preview",
+        "copilot/gpt-4.1",
+        "copilot/gpt-4o",
+        "copilot/gpt-5",
+        "copilot/gpt-5.1-codex",
+        "copilot/gpt-5.1-codex-mini"
+      ]
+    },
+    "projectchallenge/.vscode/mcp.json: github": {
+      "allowedModels": [
+        "copilot/claude-sonnet-4.5",
+        "copilot/auto",
+        "copilot/claude-haiku-4.5",
+        "copilot/gemini-2.5-pro",
+        "copilot/gemini-3-pro-preview",
+        "copilot/gpt-4.1",
+        "copilot/gpt-4o",
+        "copilot/gpt-5",
+        "copilot/gpt-5.1-codex",
+        "copilot/gpt-5.1-codex-mini"
+      ]
+    },
+    "projectchallenge/.vscode/mcp.json: filesystem": {
+      "allowedModels": [
+        "copilot/claude-sonnet-4.5",
+        "copilot/auto",
+        "copilot/claude-haiku-4.5",
+        "copilot/gemini-2.5-pro",
+        "copilot/gemini-3-pro-preview",
+        "copilot/gpt-4.1",
+        "copilot/gpt-4o",
+        "copilot/gpt-5",
+        "copilot/gpt-5.1-codex",
+        "copilot/gpt-5.1-codex-mini"
+      ]
+    }
   }
 }
