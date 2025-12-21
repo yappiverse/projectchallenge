@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 
 interface IncidentListProps {
   incidents: IncidentRecord[];
@@ -93,6 +94,7 @@ export default function IncidentList({
   onSelect,
 }: IncidentListProps) {
   const [activeFilterKey, setActiveFilterKey] = useState<string | null>(null);
+  const [traceFilter, setTraceFilter] = useState<string>("");
   const totalNormalized = incidents.reduce(
     (acc, incident) => acc + incident.normalizedLogs.length,
     0
@@ -105,9 +107,34 @@ export default function IncidentList({
   }, [activeFilterKey]);
 
   const filteredIncidents = useMemo(() => {
-    if (!activeFilter) return incidents;
-    return incidents.filter((incident) => activeFilter.match(incident));
-  }, [incidents, activeFilter]);
+    const traceQ = traceFilter.trim().toLowerCase();
+
+    return incidents.filter((incident) => {
+      if (activeFilter && !activeFilter.match(incident)) {
+        return false;
+      }
+
+      if (!traceQ) {
+        return true;
+      }
+
+      const matchesInNormalized = incident.normalizedLogs.some((log) =>
+        Boolean(log.trace_id && log.trace_id.toLowerCase().includes(traceQ))
+      );
+
+      const matchesInRaw =
+        incident.rawLogs && Array.isArray(incident.rawLogs)
+          ? incident.rawLogs.some((row: any) =>
+              Boolean(
+                row.trace_id &&
+                  String(row.trace_id).toLowerCase().includes(traceQ)
+              )
+            )
+          : false;
+
+      return matchesInNormalized || matchesInRaw;
+    });
+  }, [incidents, activeFilter, traceFilter]);
 
   const activeCount = filteredIncidents.length;
 
@@ -157,6 +184,44 @@ export default function IncidentList({
               </button>
             );
           })}
+        </div>
+
+        <div className="mb-1 flex items-center">
+          <label htmlFor="trace-search" className="sr-only">
+            Search by trace id
+          </label>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+
+            <input
+              id="trace-search"
+              type="text"
+              value={traceFilter}
+              onChange={(e) => setTraceFilter(e.target.value)}
+              placeholder="Search trace id"
+              className="w-[300px] rounded-md border border-border bg-background px-3 py-2 pl-10 pr-9 text-sm placeholder:text-muted-foreground outline-none transition hover:border-primary/50 focus:border-primary focus:ring-2 focus:ring-primary/30"
+            />
+
+            {traceFilter && (
+              <button
+                type="button"
+                aria-label="Clear trace filter"
+                onClick={() => setTraceFilter("")}
+                className="
+              absolute right-1 top-1/2 -translate-y-1/2
+              inline-flex h-6 w-6 items-center justify-center
+              rounded-md
+              text-muted-foreground
+              transition
+              hover:bg-muted/20
+              hover:text-foreground
+            "
+              >
+                ×
+              </button>
+            )}
+          </div>
         </div>
       </CardHeader>
 
